@@ -1,0 +1,22 @@
+#!/bin/bash
+# pass a folder path as the first argument and all qcow2 images will be converted to vhdx images
+
+shopt -s nullglob # make "*.non-existant-extension" expand to ""
+shopt -s globstar # allow recursive glob with **
+scriptPath="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+
+# remove any temp files from previous failed runs
+for tmpFile in "$1"/**/*.tmp ; do
+	rm "$tmpFile"
+done
+
+for qcow2File in "$1"/**/*.qcow2 ; do
+	vhdxFile="${qcow2File%.txt}.vhdx"
+	if [ -f "$vhdxFile" ] ; then
+		echo "$vhdxFile already exists"
+		continue
+	fi
+	echo "Converting $qcow2File to VHDX"
+	"$scriptPath/qemu-img" convert -p -m 16 -W "$qcow2File" -O vhdx -o subformat=fixed "$vhdxFile.tmp"
+	mv "$vhdxFile.tmp" "$vhdxFile"
+done
