@@ -1,4 +1,4 @@
-module scale-backup
+module github.com/9072997/scale-backup
 
 go 1.20
 
