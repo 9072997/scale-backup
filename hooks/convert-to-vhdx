@@ -11,7 +11,7 @@ for tmpFile in "$1"/**/*.vhdx.tmp ; do
 done
 
 for qcow2File in "$1"/**/*.qcow2 ; do
-	vhdxFile="${qcow2File%.txt}.vhdx"
+	vhdxFile="${qcow2File%.qcow2}.vhdx"
 	if [ -f "$vhdxFile" ] ; then
 		echo "$vhdxFile already exists"
 		continue
