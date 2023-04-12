@@ -121,3 +121,31 @@ You will really benefit from having a filesystem that can do deduplication. I us
 I have already mentioned I use a `PostBackup` hook to create a copy of my qcow2 images in fixed VHDX format (`-O vhdx -o subformat=fixed`). If you are running on ZFS with deduplication turned on, and are working primarily with Windows VMs, this can be really handy and won't cost you any space. Fixed VHDX files are a raw disk image with a header (footer?) at the end of the file. This means that each 2MB cluster from the qcow2 image will also be 2MB aligned in the fixed VHDX, and ZFS can dedupe the second copy down to almost nothing. Note that while this is practically free as far as disk space, there is still a CPU and IO cost to creating these images. See `DelayPostBackupWhenScheduled` to help deal with that.
 
 The advantage to having a VHDX copy is that Windows can mount them natively, even over SMB. Just browse to the share and double click the VHDX file. If it contains an NTFS filesystem, you will be able to browse and recover individual files. Any modifications to the filesystem made this way will be persisted in the VHDX but will not affect the qcow2 image.
+
+### zsh Auto-Completion
+I don't claim to know what I am doing when it comes to zsh autocompletion, but I have this snippet I add to my `.zshrc` to give me basic autocompletion for `scale-backup`. You do need to manually put in the path to your backups.
+```zsh
+autoload -Uz compinit
+compinit
+function _scale-backup {
+	local line state
+	_arguments -C \
+		'1: :(show-vms backup restore interactive-restore schedule show-backups show-queue)' \
+		'2: :->arg2'
+	case "$state" in
+		arg2)
+			case "$line[1]" in
+				backup)
+					local -a vms
+					vms=("${(@f)$(scale-backup show-vms)}")
+					compadd $vms
+				;;
+				restore)
+					_files -/ -W /local/path/to/your/backups/
+				;;
+			esac
+		;;
+	esac
+}
+compdef _scale-backup scale-backup
+```
