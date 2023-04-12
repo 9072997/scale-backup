@@ -6,7 +6,7 @@ shopt -s globstar # allow recursive glob with **
 scriptPath="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
 # remove any temp files from previous failed runs
-for tmpFile in "$1"/**/*.tmp ; do
+for tmpFile in "$1"/**/*.vhdx.tmp ; do
 	rm "$tmpFile"
 done
 
