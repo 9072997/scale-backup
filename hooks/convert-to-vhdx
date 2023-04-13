@@ -17,6 +17,6 @@ for qcow2File in "$1"/**/*.qcow2 ; do
 		continue
 	fi
 	echo "Converting $qcow2File to VHDX"
-	"$scriptPath/qemu-img" convert -p -m 16 -W "$qcow2File" -O vhdx -o subformat=fixed "$vhdxFile.tmp"
+	"$scriptPath/qemu-img" convert -C -p -m 16 -W "$qcow2File" -O vhdx -o subformat=fixed "$vhdxFile.tmp"
 	mv "$vhdxFile.tmp" "$vhdxFile"
 done
