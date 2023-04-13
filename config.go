@@ -70,18 +70,55 @@ func ScheduleConfigured() bool {
 	return !isZero(Config.Schedule.Tag)
 }
 
-func init() {
-	var configPath string
-	if runtime.GOOS == "windows" {
-		configPath = filepath.Join(os.Getenv("ProgramData"), "scale-backup")
-	} else {
-		configPath = "/etc/scale-backup"
+// try in order:
+// 1. SCALE_BACKUP_CONFIG environment variable
+// 2. ./scale-backup.toml
+// 3. ~/.scale-backup.toml (windows: %APPDATA%/scale-backup.toml)
+// 4. /etc/scale-backup.toml (windows: %ProgramData%/scale-backup.toml)
+func findConfigFile() string {
+	configFile := os.Getenv("SCALE_BACKUP_CONFIG")
+	if configFile != "" {
+		return configFile
 	}
-	configFile := filepath.Join(configPath, "config.toml")
 
-	configStr, err := os.ReadFile(configFile)
-	if os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "Config file not found: %s\n", configFile)
+	configFile = "scale-backup.toml"
+	_, err := os.Stat(configFile)
+	if err == nil {
+		return "scale-backup.toml"
+	}
+
+	if runtime.GOOS == "windows" {
+		configFile = filepath.Join(os.Getenv("APPDATA"), "scale-backup.toml")
+	} else {
+		configFile = filepath.Join(os.Getenv("HOME"), ".scale-backup.toml")
+	}
+	_, err = os.Stat(configFile)
+	if err == nil {
+		return configFile
+	}
+
+	if runtime.GOOS == "windows" {
+		configFile = filepath.Join(os.Getenv("ProgramData"), "scale-backup.toml")
+	} else {
+		configFile = "/etc/scale-backup.toml"
+	}
+	_, err = os.Stat(configFile)
+	if err == nil {
+		return configFile
+	}
+
+	return ""
+}
+
+func init() {
+	configFile := findConfigFile()
+	if configFile == "" {
+		fmt.Fprintln(os.Stderr, "Config file not found")
+		fmt.Fprintln(os.Stderr, "The following locations were searched in order:")
+		fmt.Fprintln(os.Stderr, "  1. SCALE_BACKUP_CONFIG environment variable")
+		fmt.Fprintln(os.Stderr, "  2. ./scale-backup.toml")
+		fmt.Fprintln(os.Stderr, "  3. ~/.scale-backup.toml (windows: %APPDATA%/scale-backup.toml)")
+		fmt.Fprintln(os.Stderr, "  4. /etc/scale-backup.toml (windows: %ProgramData%/scale-backup.toml)")
 
 		// fill out config with demo values and print to stderr as an example
 		Config.SMB.Domain = "CONTOSO"
@@ -119,6 +156,12 @@ func init() {
 		}
 		fmt.Fprintf(os.Stderr, "Example config:\n%s\n", string(tomlBytes))
 
+		os.Exit(1)
+	}
+
+	configStr, err := os.ReadFile(configFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading config file: %s\n", err)
 		os.Exit(1)
 	}
 

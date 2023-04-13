@@ -11,7 +11,7 @@ This command takes 2 arguments
 scale-backup backup <vm name> <backup name>
 ```
 
-Scale exports consist of a folder with an XML file and some qcow2 images. This command will export the given VM to a new folder in the location configured in `config.toml`.
+Scale exports consist of a folder with an XML file and some qcow2 images. This command will export the given VM to a new folder in the location configured in `scale-backup.toml`.
 
 ### restore
 This command takes 2 arguments
@@ -25,7 +25,7 @@ The backup name is the name of the folder (not full path) containing the backup.
 This is like `scale-backup restore`, except that it takes no arguments and instead uses a menu system. This can only be used to restore scheduled backups (since it can tell which VM they came from)
 
 ### schedule
-Run scheduled backups. This is intended to be run from `cron` or the Windows task scheduler. If the current time is outside the backup window specified in `config.toml` it will refuse to start.
+Run scheduled backups. This is intended to be run from `cron` or the Windows task scheduler. If the current time is outside the backup window specified in `scale-backup.toml` it will refuse to start.
 
 ### show-backups
 List all backups and their size
@@ -33,10 +33,14 @@ List all backups and their size
 ### show-queue
 Print a list of VMs that will be backed up when `schedule` is run. This list is in order of priority. VMs without a backup are first, followed by the VMs who's backups are the oldest.
 
-## config.toml
-`config.toml` is located at `C:\ProgramData\scale-backup\config.toml` on Windows or `/etc/scale-backup/config.toml` on other platforms.
+## scale-backup.toml (Config File)
+The following locations will be searched for a config file in order:
+1. `SCALE_BACKUP_CONFIG` environment variable
+2. `./scale-backup.toml`
+3. `~/.scale-backup.toml` (Windows: `%APPDATA%/scale-backup.toml`)
+4. `/etc/scale-backup.toml` (Windows: `%ProgramData%/scale-backup.toml`)
 
-### example config
+### Example Config
 ```toml
 [SMB]
 Domain = 'CONTOSO' # optional, used by Scale to connect to the SMB share
