@@ -48,7 +48,7 @@ func ShowVMs() {
 	}
 }
 
-func Backup(vmName, backupName string) {
+func Backup(vmName, backupName string, scheduled bool) {
 	// run pre-backup hook
 	err := PreBackupHook(vmName, backupName)
 	if err != nil {
@@ -162,7 +162,7 @@ func Backup(vmName, backupName string) {
 		case "COMPLETE":
 			fmt.Printf("Backup of %s completed\n", vmName)
 			// run post-backup hook
-			err := PostBackupHook(vmName, backupName)
+			err := PostBackupHook(vmName, backupName, scheduled)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Post-backup hook failed: %s\n", err)
 				Email(
@@ -441,7 +441,7 @@ func Schedule() {
 		vmName := queue[0]
 		backupName := DateTimePrefix(time.Now(), vmName)
 		go func(vmName, backupName string) {
-			Backup(vmName, backupName)
+			Backup(vmName, backupName, true)
 			limiter.Release(1)
 		}(vmName, backupName)
 
@@ -608,7 +608,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Usage: %s backup <vm name> <backup name>\n", os.Args[0])
 			os.Exit(1)
 		}
-		Backup(os.Args[2], os.Args[3])
+		Backup(os.Args[2], os.Args[3], false)
 	case "restore":
 		if len(os.Args) != 4 {
 			fmt.Fprintf(os.Stderr, "Usage: %s restore <backup name> <new vm name>\n", os.Args[0])

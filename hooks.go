@@ -58,8 +58,8 @@ func PreBackupHook(vmName, backupName string) error {
 // post-backup hook until after all scheduled backups are done
 var delayedHooks [][2]string
 
-func PostBackupHook(vmName, backupName string) error {
-	if Config.Hooks.DelayPostBackupWhenScheduled {
+func PostBackupHook(vmName, backupName string, scheduled bool) error {
+	if Config.Hooks.DelayPostBackupWhenScheduled && scheduled {
 		delayedHooks = append(delayedHooks, [2]string{vmName, backupName})
 		return nil
 	}
