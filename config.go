@@ -44,6 +44,7 @@ var Config struct {
 		StartTime      string
 		EndTime        string
 		BackupInterval string
+		Tolerance      string
 		MaxBackups     int
 		MaxAge         string
 	}
@@ -140,6 +141,7 @@ func init() {
 		Config.Schedule.StartTime = "5:00 PM"
 		Config.Schedule.EndTime = "6:00 AM"
 		Config.Schedule.BackupInterval = "7 days"
+		Config.Schedule.Tolerance = "1 day"
 		Config.Schedule.MaxBackups = 7
 		Config.Schedule.MaxAge = "30 days"
 		Config.Hooks.PreBackup = "/path/to/program {{VMName}} {{LocalPath}}/{{BackupName}}"
@@ -283,6 +285,21 @@ func init() {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Schedule BackupInterval is not a valid duration")
 			os.Exit(1)
+		}
+
+		// if SMTP is configured, tolerance should probably be set
+		if SMTPConfigured() && Config.Schedule.Tolerance == "" {
+			fmt.Fprintln(os.Stderr, "WARNING: Schedule Tolerance not set. behind-schedule emails will be noisy.")
+		} else if !SMTPConfigured() && Config.Schedule.Tolerance != "" {
+			fmt.Fprintln(os.Stderr, "Schedule Tolerance is set but SMTP is not configured.")
+			os.Exit(1)
+		} else {
+			// tolerance should be a valid duration
+			_, err = jiffy.DurationOf(Config.Schedule.Tolerance)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Schedule Tolerance is not a valid duration")
+				os.Exit(1)
+			}
 		}
 	}
 

@@ -408,6 +408,12 @@ func Schedule() {
 		)
 	}
 
+	// already validated from when we validated the config
+	backupInterval, err := jiffy.DurationOf(Config.Schedule.BackupInterval)
+	if err != nil {
+		panic(err)
+	}
+
 	// limit the number of concurrent backup jobs
 	limiter := semaphore.NewWeighted(int64(Config.Schedule.Concurrency))
 	for {
@@ -421,7 +427,7 @@ func Schedule() {
 		}
 
 		// re-check the queue every time we are ready to start a new job
-		queue, err := BackupQueue()
+		queue, err := BackupQueue(backupInterval)
 		if err != nil {
 			emailTerminalError(
 				"Backup not started",
@@ -468,8 +474,15 @@ func Schedule() {
 	// wait for all jobs to finish
 	limiter.Acquire(context.Background(), int64(Config.Schedule.Concurrency))
 
+	// already validated from when we validated the config
+	tolerance, err := jiffy.DurationOf(Config.Schedule.Tolerance)
+	if err != nil {
+		panic(err)
+	}
+	tolerantInterval := backupInterval + tolerance
+
 	// send email if there are still VMs in the queue
-	queue, err := BackupQueue()
+	queue, err := BackupQueue(tolerantInterval)
 	if err != nil {
 		// it would be odd to get an error here.
 		// it only affects our ability to check if the queue is empty, so
@@ -550,7 +563,13 @@ func ShowQueue() {
 		return
 	}
 
-	queue, err := BackupQueue()
+	// already validated from when we validated the config
+	backupInterval, err := jiffy.DurationOf(Config.Schedule.BackupInterval)
+	if err != nil {
+		panic(err)
+	}
+
+	queue, err := BackupQueue(backupInterval)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return

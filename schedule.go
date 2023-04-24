@@ -89,7 +89,7 @@ func Backups() (map[string][]time.Time, error) {
 }
 
 // list VMs that need to be backed up, sorted by priority
-func BackupQueue() ([]string, error) {
+func BackupQueue(interval time.Duration) ([]string, error) {
 	// get a list of all VMs
 	vms, err := VMs(Config.Schedule.Tag)
 	if err != nil {
@@ -115,12 +115,6 @@ func BackupQueue() ([]string, error) {
 		backupAges[name] = time.Since(lastBackup)
 	}
 
-	// already validated from when we validated the config
-	backupInterval, err := jiffy.DurationOf(Config.Schedule.BackupInterval)
-	if err != nil {
-		panic(err)
-	}
-
 	// list VMs to backup
 	type vmToBackup struct {
 		name string
@@ -128,7 +122,7 @@ func BackupQueue() ([]string, error) {
 	}
 	var vmsToBackup []vmToBackup
 	for name, age := range backupAges {
-		if age > backupInterval {
+		if age > interval {
 			vmsToBackup = append(vmsToBackup, vmToBackup{name, age})
 		}
 	}

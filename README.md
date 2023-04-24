@@ -72,6 +72,7 @@ Concurrency = 3 # max number of exports to run at once (Sacle's limit is 3)
 StartTime = '5:00 PM' # start of the backup window
 EndTime = '6:00 AM' # end of backup window
 BackupInterval = '7 days' # how often should we back up a VM
+Tolerance = '1 day' # generate an alert if the schedule falls behind
 # you can specify 1 or both of these options
 MaxBackups = 7 # only keep this many backups
 MaxAge = '30 days' # backups older than this will be deleted
