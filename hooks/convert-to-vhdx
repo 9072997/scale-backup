@@ -19,4 +19,6 @@ for qcow2File in "$1"/**/*.qcow2 ; do
 	echo "Converting $qcow2File to VHDX"
 	nice "$scriptPath/qemu-img" convert -C -p -m 16 -W "$qcow2File" -O vhdx -o subformat=fixed "$vhdxFile.tmp"
 	mv "$vhdxFile.tmp" "$vhdxFile"
+	# mounting a VHDX from Windows requires the file to be writable
+	chmod 666 "$vhdxFile"
 done
