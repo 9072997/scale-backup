@@ -57,6 +57,10 @@ var Config struct {
 		PostSchedule                 string
 		DelayPostBackupWhenScheduled bool
 	}
+	Debug struct {
+		LogFile         string
+		RedactPasswords bool
+	}
 }
 
 func isZero(x any) bool {
@@ -151,6 +155,8 @@ func init() {
 		Config.Hooks.PreSchedule = "/path/to/program {{LocalPath}}"
 		Config.Hooks.PostSchedule = "/path/to/program {{LocalPath}}"
 		Config.Hooks.DelayPostBackupWhenScheduled = false
+		Config.Debug.LogFile = "/var/log/scale-backup.log"
+		Config.Debug.RedactPasswords = true
 
 		tomlBytes, err := toml.Marshal(Config)
 		if err != nil {

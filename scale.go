@@ -53,8 +53,11 @@ type ImportOptions struct {
 }
 
 func VMs(searchTag string) (map[string]string, error) {
+	debugReturn := DebugCall(searchTag)
+
 	client, err := tofu.GetTofuClient(Config.Scale.CertFingerprint)
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 	apiURL := url.URL{
@@ -64,17 +67,20 @@ func VMs(searchTag string) (map[string]string, error) {
 	}
 	req, err := http.NewRequest("GET", apiURL.String(), nil)
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 	req.SetBasicAuth(Config.Scale.Username, Config.Scale.Password)
-	resp, err := client.Do(req)
+	resp, err := DebugHTTP(client, req)
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	var vms []VM
 	err = json.NewDecoder(resp.Body).Decode(&vms)
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 
@@ -104,12 +110,16 @@ func VMs(searchTag string) (map[string]string, error) {
 		vmMap[vm.Name] = vm.UUID
 	}
 
+	debugReturn(vmMap, nil)
 	return vmMap, nil
 }
 
 func GetTask(taskTag string) (*Task, error) {
+	debugReturn := DebugCall(taskTag)
+
 	client, err := tofu.GetTofuClient(Config.Scale.CertFingerprint)
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 	apiURL := url.URL{
@@ -119,29 +129,38 @@ func GetTask(taskTag string) (*Task, error) {
 	}
 	req, err := http.NewRequest("GET", apiURL.String(), nil)
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 	req.SetBasicAuth(Config.Scale.Username, Config.Scale.Password)
-	resp, err := client.Do(req)
+	resp, err := DebugHTTP(client, req)
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	var tasks []Task
 	err = json.NewDecoder(resp.Body).Decode(&tasks)
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 
 	if len(tasks) != 1 {
-		return nil, fmt.Errorf("expected 1 task, got %d", len(tasks))
+		err := fmt.Errorf("expected 1 task, got %d", len(tasks))
+		debugReturn(nil, err)
+		return nil, err
 	}
+	debugReturn(&tasks[0], nil)
 	return &tasks[0], nil
 }
 
 func Export(vmUUID, folder string) (string, error) {
+	debugReturn := DebugCall(vmUUID, folder)
+
 	client, err := tofu.GetTofuClient(Config.Scale.CertFingerprint)
 	if err != nil {
+		debugReturn("", err)
 		return "", err
 	}
 	apiURL := url.URL{
@@ -165,30 +184,38 @@ func Export(vmUUID, folder string) (string, error) {
 	exportOptions.Target.ParallelCountPerTransfer = 16
 	reqBody, err := json.Marshal(exportOptions)
 	if err != nil {
+		debugReturn("", err)
 		return "", err
 	}
 	req, err := http.NewRequest("POST", apiURL.String(), bytes.NewReader(reqBody))
 	if err != nil {
+		debugReturn("", err)
 		return "", err
 	}
 	req.SetBasicAuth(Config.Scale.Username, Config.Scale.Password)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := DebugHTTP(client, req)
 	if err != nil {
+		debugReturn("", err)
 		return "", err
 	}
 	defer resp.Body.Close()
 	var task Task
 	err = json.NewDecoder(resp.Body).Decode(&task)
 	if err != nil {
+		debugReturn("", err)
 		return "", err
 	}
+	debugReturn(task.TaskTag, nil)
 	return task.TaskTag, nil
 }
 
 func Import(newVMName, folder string) (string, error) {
+	debugReturn := DebugCall(newVMName, folder)
+
 	client, err := tofu.GetTofuClient(Config.Scale.CertFingerprint)
 	if err != nil {
+		debugReturn("", err)
 		return "", err
 	}
 	apiURL := url.URL{
@@ -212,24 +239,29 @@ func Import(newVMName, folder string) (string, error) {
 	importOptions.Template.Name = newVMName
 	reqBody, err := json.Marshal(importOptions)
 	if err != nil {
+		debugReturn("", err)
 		return "", err
 	}
 	req, err := http.NewRequest("POST", apiURL.String(), bytes.NewReader(reqBody))
 	if err != nil {
+		debugReturn("", err)
 		return "", err
 	}
 	req.SetBasicAuth(Config.Scale.Username, Config.Scale.Password)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := DebugHTTP(client, req)
 	if err != nil {
+		debugReturn("", err)
 		return "", err
 	}
 	defer resp.Body.Close()
 	var task Task
 	err = json.NewDecoder(resp.Body).Decode(&task)
 	if err != nil {
+		debugReturn("", err)
 		return "", err
 	}
+	debugReturn(task.TaskTag, nil)
 	return task.TaskTag, nil
 }
 

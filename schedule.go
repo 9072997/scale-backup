@@ -14,6 +14,8 @@ import (
 
 // return true if we are currently in the scheduled backup window
 func ScheduleIsActive() bool {
+	debugReturn := DebugCall()
+
 	// we already validated these when we validated the config
 	start, err := time.Parse("3:04 PM", Config.Schedule.StartTime)
 	if err != nil {
@@ -38,17 +40,24 @@ func ScheduleIsActive() bool {
 
 	if start.Before(end) {
 		// if the schedule does not cross midnight
-		return nowTime.After(start) && nowTime.Before(end)
+		ret := nowTime.After(start) && nowTime.Before(end)
+		debugReturn(ret)
+		return ret
 	} else {
 		// if the schedule does cross midnight
-		return nowTime.After(start) || nowTime.Before(end)
+		ret := nowTime.After(start) || nowTime.Before(end)
+		debugReturn(ret)
+		return ret
 	}
 }
 
 // take a VM name and return a folder name in the format
 // "2006-01-02_15-04-05 My-VM-Name"
 func DateTimePrefix(t time.Time, name string) string {
-	return t.Format("2006-01-02_15-04-05 ") + name
+	debugReturn := DebugCall(t, name)
+	ret := t.Format("2006-01-02_15-04-05 ") + name
+	debugReturn(ret)
+	return ret
 }
 
 // given a folder name in the format "2006-01-02_15-04-05 My-VM-Name"
@@ -61,8 +70,11 @@ func parseDateTime(fullName string) (time.Time, string, error) {
 
 // search local path for backups, listing each one for each VM
 func Backups() (map[string][]time.Time, error) {
+	debugReturn := DebugCall()
+
 	entries, err := os.ReadDir(Config.SMB.LocalPath)
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 
@@ -85,20 +97,25 @@ func Backups() (map[string][]time.Time, error) {
 		})
 	}
 
+	debugReturn(backups, nil)
 	return backups, nil
 }
 
 // list VMs that need to be backed up, sorted by priority
 func BackupQueue(interval time.Duration) ([]string, error) {
+	debugReturn := DebugCall(interval)
+
 	// get a list of all VMs
 	vms, err := VMs(Config.Schedule.Tag)
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 
 	// get a list of all backups
 	backups, err := Backups()
 	if err != nil {
+		debugReturn(nil, err)
 		return nil, err
 	}
 
@@ -137,13 +154,17 @@ func BackupQueue(interval time.Duration) ([]string, error) {
 	for _, vm := range vmsToBackup {
 		vmNames = append(vmNames, vm.name)
 	}
+	debugReturn(vmNames, nil)
 	return vmNames, nil
 }
 
 // delete old backups
 func Cleanup() error {
+	debugReturn := DebugCall()
+
 	backups, err := Backups()
 	if err != nil {
+		debugReturn(err)
 		return err
 	}
 
@@ -181,16 +202,20 @@ func Cleanup() error {
 	// sanity check that we are deleting less than 50% of backups
 	deletionPercentage := 100 * float64(len(backupsToDelete)) / float64(len(backups))
 	if deletionPercentage > 50 {
-		return fmt.Errorf("refusing to delete %.0f%% of backups", deletionPercentage)
+		err := fmt.Errorf("refusing to delete %.0f%% of backups", deletionPercentage)
+		debugReturn(err)
+		return err
 	}
 
 	// delete backups
 	for _, folderName := range backupsToDelete {
 		err := os.RemoveAll(filepath.Join(Config.SMB.LocalPath, folderName))
 		if err != nil {
+			debugReturn(err)
 			return err
 		}
 	}
 
+	debugReturn(nil)
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 )
 
 func Email(subject, body string) error {
+	debugReturn := DebugCall(subject, body)
 	var msg bytes.Buffer
 
 	msg.WriteString("To: " + Config.SMTP.To + "\r\n")
@@ -31,8 +32,10 @@ func Email(subject, body string) error {
 		// here to avoid huge error handling code everywhere else.
 		fmt.Fprintf(os.Stderr, "Email failed: %s\n", err)
 
+		debugReturn(err)
 		return err
 	}
 
+	debugReturn(nil)
 	return nil
 }

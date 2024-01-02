@@ -49,6 +49,8 @@ func ShowVMs() {
 }
 
 func Backup(vmName, backupName string, scheduled bool) {
+	DebugCall(vmName, backupName, scheduled)
+
 	// run pre-backup hook
 	err := PreBackupHook(vmName, backupName)
 	if err != nil {
@@ -191,6 +193,8 @@ func Backup(vmName, backupName string, scheduled bool) {
 }
 
 func Restore(backupName, newVMName string) {
+	DebugCall(backupName, newVMName)
+
 	// run pre-restore hook
 	err := PreRestoreHook(newVMName, backupName)
 	if err != nil {
@@ -286,6 +290,8 @@ func Restore(backupName, newVMName string) {
 }
 
 func InteractiveRestore() {
+	DebugCall()
+
 	// get the list of backups
 	backups, err := Backups()
 	if err != nil {
@@ -377,6 +383,8 @@ func InteractiveRestore() {
 }
 
 func Schedule() {
+	DebugCall()
+
 	// check that schedule is configured
 	if !ScheduleConfigured() {
 		emailTerminalError(
@@ -529,6 +537,8 @@ func Schedule() {
 }
 
 func ShowBackups() {
+	DebugCall()
+
 	backups, err := Backups()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -557,6 +567,8 @@ func ShowBackups() {
 }
 
 func ShowQueue() {
+	DebugCall()
+
 	// a queue requires a schedule to be configured
 	if !ScheduleConfigured() {
 		fmt.Fprintln(os.Stderr, "No schedule configured")

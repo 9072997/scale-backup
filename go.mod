@@ -7,8 +7,8 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/hyperjumptech/jiffy v1.0.0
 	github.com/manifoldco/promptui v0.9.0
-	github.com/pelletier/go-toml/v2 v2.0.7
-	golang.org/x/sync v0.1.0
+	github.com/pelletier/go-toml/v2 v2.1.1
+	golang.org/x/sync v0.5.0
 )
 
 require (
