@@ -303,6 +303,11 @@ func init() {
 		}
 	}
 
+	// if tolerance is not set, set it to a safely-parsable zero duration
+	if Config.Schedule.Tolerance == "" {
+		Config.Schedule.Tolerance = "0s"
+	}
+
 	// DelayPostBackupWhenScheduled only makes sense if PostBackup is set
 	if Config.Hooks.DelayPostBackupWhenScheduled && Config.Hooks.PostBackup == "" {
 		fmt.Fprintln(os.Stderr, "DelayPostBackupWhenScheduled is set but PostBackup is not. There is nothing to delay.")
