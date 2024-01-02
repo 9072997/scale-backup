@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -26,10 +27,7 @@ func writeToLogFile(logEntry string) {
 
 	// truncate log file if necessary
 	if !logFileTruncated {
-		err := os.Truncate(Config.Debug.LogFile, 0)
-		if err != nil {
-			panic(err)
-		}
+		os.Truncate(Config.Debug.LogFile, 0)
 		logFileTruncated = true
 	}
 
@@ -113,12 +111,8 @@ func DebugHTTP(c *http.Client, r *http.Request) (*http.Response, error) {
 		r.Body = io.NopCloser(bytes.NewReader(reqBody))
 	}
 	if Config.Debug.RedactPasswords {
-		reqBody = bytes.Replace(
-			reqBody,
-			[]byte(Config.SMB.Password),
-			[]byte("REDACTED"),
-			1,
-		)
+		r := regexp.MustCompile("smb://[^@]+@")
+		reqBody = r.ReplaceAll(reqBody, []byte("smb://<redacted>@"))
 	}
 	if len(reqBody) > 0 {
 		logEntry.WriteString(fmt.Sprintf(

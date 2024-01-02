@@ -33,6 +33,15 @@ List all backups and their size
 ### show-queue
 Print a list of VMs that will be backed up when `schedule` is run. This list is in order of priority. VMs without a backup are first, followed by the VMs who's backups are the oldest.
 
+### upload-disk-media
+Upload a virtual hard disk file (tested with VHDX and qcow2) to the media section of Scale. You can then use the GUI to create disks based on it.
+
+### show-disks
+List disks attached to a VM. This is mostly so you know which uuid to use in the next command.
+
+### clone-disk
+Create a copy-on-write clone of a disk currently attached to one VM and attach it to another VM. This does not transfer the disk over the network, so it's fairly quick.
+
 ## scale-backup.toml (Config File)
 The following locations will be searched for a config file in order:
 1. `SCALE_BACKUP_CONFIG` environment variable
@@ -93,6 +102,10 @@ PostSchedule = '/path/to/program {{LocalPath}}'
 # until the hook finished. If this is set to true, PostBackup hooks will be
 # queued and run one-by-one, right before the PostSchedule hook.
 DelayPostBackupWhenScheduled = false
+
+[Debug]
+LogFile = '/absolute/path/to/log/file' # optional
+RedactPasswords = true # optional, default false
 ```
 
 ### CertFingerprint
