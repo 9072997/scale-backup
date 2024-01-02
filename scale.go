@@ -10,15 +10,46 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	tofu "github.com/9072997/golang-tofu"
 )
 
 type VM struct {
-	UUID        string `json:"uuid"`
-	Name        string `json:"name"`
-	Tags        string `json:"tags"`
-	IsTransient bool   `json:"isTransient"`
+	UUID        string     `json:"uuid"`
+	Name        string     `json:"name"`
+	Tags        string     `json:"tags"`
+	IsTransient bool       `json:"isTransient"`
+	BlockDevs   []BlockDev `json:"blockDevs"`
+}
+
+type BlockDev struct {
+	UUID                string `json:"uuid"`
+	VirDomainUUID       string `json:"virDomainUUID"`
+	Type                string `json:"type"`
+	Capacity            int    `json:"capacity"`
+	Allocation          int    `json:"allocation"`
+	DisableSnapshotting bool   `json:"disableSnapshotting"`
+}
+
+type Snapshot struct {
+	DomainUUID                string `json:"domainUUID"`
+	Label                     string `json:"label"`
+	Type                      string `json:"type"`
+	LocalRetainUntilTimestamp int64  `json:"localRetainUntilTimestamp"`
+	Replication               bool   `json:"replication"`
+}
+
+type DiskFromSnapshotOpts struct {
+	Options struct {
+		RegenerateDiskID bool `json:"regenerateDiskID"`
+	} `json:"options"`
+	SnapUUID string `json:"snapUUID"`
+	Template struct {
+		VirDomainUUID string `json:"virDomainUUID"`
+		Type          string `json:"type"`
+		Capacity      int    `json:"capacity"`
+	} `json:"template"`
 }
 
 type Task struct {
@@ -115,6 +146,184 @@ func VMs(searchTag string) (map[string]string, error) {
 
 	debugReturn(vmMap, nil)
 	return vmMap, nil
+}
+
+func VMDisks(vmUUID string) ([]BlockDev, error) {
+	debugReturn := DebugCall(vmUUID)
+
+	client, err := tofu.GetTofuClient(Config.Scale.CertFingerprint)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	apiURL := url.URL{
+		Scheme: "https",
+		Host:   Config.Scale.Host,
+		Path:   "/rest/v1/VirDomain/" + url.PathEscape(vmUUID),
+	}
+	req, err := http.NewRequest("GET", apiURL.String(), nil)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	req.SetBasicAuth(Config.Scale.Username, Config.Scale.Password)
+	resp, err := DebugHTTP(client, req)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var vms []VM
+	err = json.NewDecoder(resp.Body).Decode(&vms)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+
+	if len(vms) != 1 {
+		err := fmt.Errorf("expected 1 VM, got %d", len(vms))
+		debugReturn(nil, err)
+		return nil, err
+	}
+
+	debugReturn(vms[0].BlockDevs, nil)
+	return vms[0].BlockDevs, nil
+}
+
+func Disks() ([]BlockDev, error) {
+	debugReturn := DebugCall()
+
+	client, err := tofu.GetTofuClient(Config.Scale.CertFingerprint)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	apiURL := url.URL{
+		Scheme: "https",
+		Host:   Config.Scale.Host,
+		Path:   "/rest/v1/VirDomain",
+	}
+	req, err := http.NewRequest("GET", apiURL.String(), nil)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	req.SetBasicAuth(Config.Scale.Username, Config.Scale.Password)
+	resp, err := DebugHTTP(client, req)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var vms []VM
+	err = json.NewDecoder(resp.Body).Decode(&vms)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+
+	var disks []BlockDev
+	for _, vm := range vms {
+		disks = append(disks, vm.BlockDevs...)
+	}
+
+	debugReturn(disks, nil)
+	return disks, nil
+}
+
+func CreateSnapshot(vmUUID, snapshotName string, duration time.Duration) (*Task, error) {
+	debugReturn := DebugCall(vmUUID, snapshotName, duration)
+
+	client, err := tofu.GetTofuClient(Config.Scale.CertFingerprint)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	apiURL := url.URL{
+		Scheme: "https",
+		Host:   Config.Scale.Host,
+		Path:   "/rest/v1/VirDomainSnapshot",
+	}
+	expireTime := time.Now().Add(duration).Unix()
+	reqBody, err := json.Marshal(Snapshot{
+		DomainUUID:                vmUUID,
+		Label:                     snapshotName,
+		Type:                      "AUTOMATED",
+		LocalRetainUntilTimestamp: expireTime,
+		Replication:               false,
+	})
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	req, err := http.NewRequest("POST", apiURL.String(), bytes.NewReader(reqBody))
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	req.SetBasicAuth(Config.Scale.Username, Config.Scale.Password)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := DebugHTTP(client, req)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var task Task
+	err = json.NewDecoder(resp.Body).Decode(&task)
+	if err != nil {
+		debugReturn(nil, err)
+		return nil, err
+	}
+	debugReturn(task, nil)
+	return &task, nil
+}
+
+func DiskFromSnapshot(src BlockDev, snap, dstVMUUID string) (string, error) {
+	debugReturn := DebugCall(src)
+
+	client, err := tofu.GetTofuClient(Config.Scale.CertFingerprint)
+	if err != nil {
+		debugReturn("", err)
+		return "", err
+	}
+	apiURL := url.URL{
+		Scheme: "https",
+		Host:   Config.Scale.Host,
+		Path:   "/rest/v1/VirDomainBlockDevice/" + url.PathEscape(src.UUID) + "/clone",
+	}
+	var opts DiskFromSnapshotOpts
+	opts.Options.RegenerateDiskID = false
+	opts.SnapUUID = snap
+	opts.Template.VirDomainUUID = dstVMUUID
+	opts.Template.Type = src.Type
+	opts.Template.Capacity = src.Capacity
+	reqBody, err := json.Marshal(opts)
+	if err != nil {
+		debugReturn("", err)
+		return "", err
+	}
+	req, err := http.NewRequest("POST", apiURL.String(), bytes.NewReader(reqBody))
+	if err != nil {
+		debugReturn("", err)
+		return "", err
+	}
+	req.SetBasicAuth(Config.Scale.Username, Config.Scale.Password)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := DebugHTTP(client, req)
+	if err != nil {
+		debugReturn("", err)
+		return "", err
+	}
+	defer resp.Body.Close()
+	var task Task
+	err = json.NewDecoder(resp.Body).Decode(&task)
+	if err != nil {
+		debugReturn("", err)
+		return "", err
+	}
+	debugReturn(task.TaskTag, nil)
+	return task.TaskTag, nil
 }
 
 func GetTask(taskTag string) (*Task, error) {

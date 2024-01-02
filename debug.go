@@ -145,7 +145,8 @@ func DebugHTTP(c *http.Client, r *http.Request) (*http.Response, error) {
 	}
 
 	// write log line
-	logEntry.WriteString(logEntry.String())
+	logEntry.WriteString("=== END ===\n")
+	writeToLogFile(logEntry.String())
 
 	return resp, reqErr
 }

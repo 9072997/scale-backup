@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -651,7 +652,221 @@ func UploadDiskMedia(filename string) {
 	fmt.Printf("Uploaded %s as %s\n", basename, uuid)
 }
 
+func ShowDisks(vmName string) {
+	DebugCall(vmName)
+
+	// get vm uuid
+	vms, err := VMs("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get list of VMs: %s\n", err)
+		return
+	}
+
+	vmUUID, exists := vms[vmName]
+	if !exists {
+		fmt.Fprintf(os.Stderr, "VM %s not found\n", vmName)
+		return
+	}
+
+	// get disks
+	disks, err := VMDisks(vmUUID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get list of disks for %s: %s\n", vmName, err)
+		return
+	}
+
+	// print disks
+	for _, disk := range disks {
+		if !strings.HasSuffix(disk.Type, "_DISK") {
+			continue
+		}
+		var snapshots string
+		if disk.DisableSnapshotting {
+			snapshots = "Disabled"
+		} else {
+			snapshots = "Enabled"
+		}
+
+		fmt.Printf(
+			"%s: %s/%s Snapshots %s\n",
+			disk.UUID,
+			humanize.Bytes(uint64(disk.Allocation)),
+			humanize.Bytes(uint64(disk.Capacity)),
+			snapshots,
+		)
+	}
+}
+
+func CloneDisk(diskUUID, targetVM string) {
+	DebugCall(diskUUID, targetVM)
+
+	// get source disk
+	allDisks, err := Disks()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get list of disks: %s\n", err)
+		return
+	}
+	var src BlockDev
+	for _, disk := range allDisks {
+		if disk.UUID == diskUUID {
+			if !strings.HasSuffix(disk.Type, "_DISK") {
+				fmt.Fprintf(os.Stderr, "Disk %s is not a disk\n", diskUUID)
+				return
+			}
+			if disk.DisableSnapshotting {
+				fmt.Fprintf(os.Stderr, "Disk %s has snapshots disabled\n", diskUUID)
+				return
+			}
+			src = disk
+			break
+		}
+	}
+
+	// get target VM UUID
+	vms, err := VMs("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get list of VMs: %s\n", err)
+		return
+	}
+	targetUUID, exists := vms[targetVM]
+	if !exists {
+		fmt.Fprintf(os.Stderr, "VM %s not found\n", targetVM)
+		return
+	}
+
+	// snapshot the VM
+	fmt.Println("Creating temporary snapshot...")
+	snapshotName := fmt.Sprintf("clone-%s", diskUUID)
+	snapshotTask, err := CreateSnapshot(
+		src.VirDomainUUID,
+		snapshotName,
+		time.Minute,
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create snapshot: %s\n", err)
+		return
+	}
+
+	// wait for snapshot to complete
+	errCount := 0
+	percent := -2
+	for percent != 101 {
+		// get task status
+		// if we fail to do this 5 times in a row, exit with error
+		task, err := GetTask(snapshotTask.TaskTag)
+		if err == nil {
+			errCount = 0
+		} else {
+			errCount++
+			if errCount > 5 {
+				fmt.Fprintf(os.Stderr, "Cannot retrieve status of snapshot: %s\n", err)
+			}
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		// for errors
+		taskJSON, _ := json.MarshalIndent(task, "", "\t")
+
+		switch task.State {
+		case "UNINITIALIZED":
+			errCount++
+			if errCount > 5 {
+				fmt.Fprintf(os.Stderr, "Snapshot failed to start\n%s\n", string(taskJSON))
+			}
+		case "ERROR":
+			fmt.Fprintf(os.Stderr, "Snapshot failed\n%s\n", string(taskJSON))
+		case "QUEUED":
+			errCount = 0
+			if percent != -1 {
+				percent = -1
+				fmt.Println("Waiting for other tasks on the cluster to complete...")
+			}
+		case "RUNNING":
+			errCount = 0
+			if task.ProgressPercent != percent {
+				percent = task.ProgressPercent
+				fmt.Printf("Snapshot %d%% complete\n", percent)
+			}
+		case "COMPLETE":
+			fmt.Printf("Snapshot completed\n")
+			percent = 101
+		default:
+			errCount++
+			if errCount > 5 {
+				fmt.Fprintf(os.Stderr, "Unknown task state\n%s\n", string(taskJSON))
+			}
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	// clone the disk
+	fmt.Println("Cloning disk from snapshot...")
+	cloneTask, err := DiskFromSnapshot(src, snapshotTask.CreatedUUID, targetUUID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to clone disk: %s\n", err)
+		return
+	}
+
+	// wait for clone to complete
+	errCount = 0
+	percent = -2
+	for percent != 101 {
+		// get task status
+		// if we fail to do this 5 times in a row, exit with error
+		task, err := GetTask(cloneTask)
+		if err == nil {
+			errCount = 0
+		} else {
+			errCount++
+			if errCount > 5 {
+				fmt.Fprintf(os.Stderr, "Cannot retrieve status of Create-Disk: %s\n", err)
+			}
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		// for errors
+		taskJSON, _ := json.MarshalIndent(task, "", "\t")
+
+		switch task.State {
+		case "UNINITIALIZED":
+			errCount++
+			if errCount > 5 {
+				fmt.Fprintf(os.Stderr, "Create-Disk failed to start\n%s\n", string(taskJSON))
+			}
+		case "ERROR":
+			fmt.Fprintf(os.Stderr, "Create-Disk failed\n%s\n", string(taskJSON))
+		case "QUEUED":
+			errCount = 0
+			if percent != -1 {
+				percent = -1
+				fmt.Println("Waiting for other tasks on the cluster to complete...")
+			}
+		case "RUNNING":
+			errCount = 0
+			if task.ProgressPercent != percent {
+				percent = task.ProgressPercent
+				fmt.Printf("Create-Disk %d%% complete\n", percent)
+			}
+		case "COMPLETE":
+			fmt.Printf("Create-Disk completed\n")
+			percent = 101
+		default:
+			errCount++
+			if errCount > 5 {
+				fmt.Fprintf(os.Stderr, "Unknown task state\n%s\n", string(taskJSON))
+			}
+		}
+		time.Sleep(5 * time.Second)
+	}
+}
+
 func main() {
+	var anyArgs []any
+	for _, arg := range os.Args {
+		anyArgs = append(anyArgs, arg)
+	}
+	DebugCall(anyArgs...)
+
 	if len(os.Args) < 2 {
 		basename := filepath.Base(os.Args[0])
 		fmt.Fprintf(os.Stderr, "Usage: %s <command> [args]\n", basename)
@@ -664,6 +879,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "\tshow-backups")
 		fmt.Fprintln(os.Stderr, "\tshow-queue")
 		fmt.Fprintln(os.Stderr, "\tupload-disk-media <filename>")
+		fmt.Fprintln(os.Stderr, "\tshow-disks <vm name>")
+		fmt.Fprintln(os.Stderr, "\tclone-disk <disk uuid> <target vm name>")
 		os.Exit(1)
 	}
 
@@ -696,6 +913,18 @@ func main() {
 			os.Exit(1)
 		}
 		UploadDiskMedia(os.Args[2])
+	case "show-disks":
+		if len(os.Args) != 3 {
+			fmt.Fprintf(os.Stderr, "Usage: %s show-disks <vm name>\n", os.Args[0])
+			os.Exit(1)
+		}
+		ShowDisks(os.Args[2])
+	case "clone-disk":
+		if len(os.Args) != 4 {
+			fmt.Fprintf(os.Stderr, "Usage: %s clone-disk <disk uuid> <target vm name>\n", os.Args[0])
+			os.Exit(1)
+		}
+		CloneDisk(os.Args[2], os.Args[3])
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
 		os.Exit(1)
