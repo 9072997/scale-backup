@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 
 	tofu "github.com/9072997/golang-tofu"
@@ -28,6 +30,7 @@ type Task struct {
 	DescriptionParameters []string `json:"descriptionParameters"`
 	FormattedMessage      string   `json:"formattedMessage"`
 	MessageParameters     []any    `json:"messageParameters"`
+	CreatedUUID           string   `json:"createdUUID"`
 }
 
 type ExportOptions struct {
@@ -263,6 +266,60 @@ func Import(newVMName, folder string) (string, error) {
 	}
 	debugReturn(task.TaskTag, nil)
 	return task.TaskTag, nil
+}
+
+func Upload(filename string, fileSize int64, file io.Reader) (string, error) {
+	debugReturn := DebugCall(filename, fileSize, file)
+
+	client, err := tofu.GetTofuClient(Config.Scale.CertFingerprint)
+	if err != nil {
+		debugReturn("", err)
+		return "", err
+	}
+	apiURL := url.URL{
+		Scheme: "https",
+		Host:   Config.Scale.Host,
+		Path:   "/rest/v1/VirtualDisk/upload",
+		RawQuery: url.Values{
+			"filename": []string{filename},
+			"filesize": []string{strconv.FormatInt(fileSize, 10)},
+		}.Encode(),
+	}
+	req, err := http.NewRequest("PUT", apiURL.String(), file)
+	if err != nil {
+		debugReturn("", err)
+		return "", err
+	}
+	req.SetBasicAuth(Config.Scale.Username, Config.Scale.Password)
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.ContentLength = fileSize
+	resp, err := client.Do(req)
+	if err != nil {
+		debugReturn("", err)
+		return "", err
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		debugReturn("", err)
+		return "", err
+	}
+
+	var task Task
+	err = json.Unmarshal(respBody, &task)
+	if err != nil {
+		err := fmt.Errorf("error unmarshalling task: %w\n%s", err, respBody)
+		debugReturn("", err)
+		return "", err
+	}
+	if task.CreatedUUID == "" {
+		err := fmt.Errorf("task createdUUID is empty: %s", respBody)
+		debugReturn("", err)
+		return "", err
+	}
+
+	debugReturn(task.CreatedUUID, nil)
+	return task.CreatedUUID, nil
 }
 
 func smbUserAndDomain() string {

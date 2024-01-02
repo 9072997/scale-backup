@@ -13,6 +13,7 @@ import (
 )
 
 var logFileMutex sync.Mutex
+var logFileTruncated bool
 
 func writeToLogFile(logEntry string) {
 	if Config.Debug.LogFile == "" {
@@ -22,6 +23,15 @@ func writeToLogFile(logEntry string) {
 	// lock log file
 	logFileMutex.Lock()
 	defer logFileMutex.Unlock()
+
+	// truncate log file if necessary
+	if !logFileTruncated {
+		err := os.Truncate(Config.Debug.LogFile, 0)
+		if err != nil {
+			panic(err)
+		}
+		logFileTruncated = true
+	}
 
 	// open file for appending
 	f, err := os.OpenFile(Config.Debug.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -65,9 +75,9 @@ func DebugCall(args ...any) func(...any) {
 
 	// return a function that can be called to log the return value
 	return func(ret ...any) {
-		if len(ret) == 0 {
-			return
-		}
+		// get line number of calling function
+		_, _, line, _ := runtime.Caller(1)
+
 		var jsonRet []string
 		for _, r := range ret {
 			jsonR, err := json.Marshal(r)
@@ -78,7 +88,7 @@ func DebugCall(args ...any) func(...any) {
 		}
 		retStr := strings.Join(jsonRet, ", ")
 		origLine := strings.TrimRight(logLine, "\n")
-		logLine = fmt.Sprintf("%s = %s\n", origLine, retStr)
+		logLine = fmt.Sprintf("%s:%d = %s\n", origLine, line, retStr)
 		writeToLogFile(logLine)
 	}
 }

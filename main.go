@@ -15,6 +15,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/hyperjumptech/jiffy"
 	"github.com/manifoldco/promptui"
+	"github.com/schollz/progressbar/v3"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -616,6 +617,40 @@ func ShowQueue() {
 	}
 }
 
+func UploadDiskMedia(filename string) {
+	DebugCall()
+
+	// open file
+	file, err := os.Open(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open file %s: %s\n", filename, err)
+		return
+	}
+	defer file.Close()
+
+	// get file size
+	fileInfo, err := file.Stat()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get file info for %s: %s\n", filename, err)
+		return
+	}
+	fileSize := fileInfo.Size()
+
+	// set up progress bar
+	bar := progressbar.DefaultBytes(fileSize)
+	reader := progressbar.NewReader(file, bar)
+
+	// upload file
+	basename := filepath.Base(filename)
+	uuid, err := Upload(basename, fileSize, &reader)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to upload %s: %s\n", filename, err)
+		return
+	}
+
+	fmt.Printf("Uploaded %s as %s\n", basename, uuid)
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		basename := filepath.Base(os.Args[0])
@@ -628,6 +663,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "\tschedule")
 		fmt.Fprintln(os.Stderr, "\tshow-backups")
 		fmt.Fprintln(os.Stderr, "\tshow-queue")
+		fmt.Fprintln(os.Stderr, "\tupload-disk-media <filename>")
 		os.Exit(1)
 	}
 
@@ -654,6 +690,12 @@ func main() {
 		ShowBackups()
 	case "show-queue":
 		ShowQueue()
+	case "upload-disk-media":
+		if len(os.Args) != 3 {
+			fmt.Fprintf(os.Stderr, "Usage: %s upload-disk-media <filename>\n", os.Args[0])
+			os.Exit(1)
+		}
+		UploadDiskMedia(os.Args[2])
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
 		os.Exit(1)

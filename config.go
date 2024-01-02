@@ -294,7 +294,10 @@ func init() {
 		}
 
 		// if SMTP is configured, tolerance should probably be set
-		if SMTPConfigured() && Config.Schedule.Tolerance == "" {
+		if !SMTPConfigured() && Config.Schedule.Tolerance == "" {
+			// set it to a safely-parsable zero duration
+			Config.Schedule.Tolerance = "0s"
+		} else if SMTPConfigured() && Config.Schedule.Tolerance == "" {
 			fmt.Fprintln(os.Stderr, "WARNING: Schedule Tolerance not set. behind-schedule emails will be noisy.")
 		} else if !SMTPConfigured() && Config.Schedule.Tolerance != "" {
 			fmt.Fprintln(os.Stderr, "Schedule Tolerance is set but SMTP is not configured.")
@@ -307,11 +310,6 @@ func init() {
 				os.Exit(1)
 			}
 		}
-	}
-
-	// if tolerance is not set, set it to a safely-parsable zero duration
-	if Config.Schedule.Tolerance == "" {
-		Config.Schedule.Tolerance = "0s"
 	}
 
 	// DelayPostBackupWhenScheduled only makes sense if PostBackup is set
