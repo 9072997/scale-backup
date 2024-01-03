@@ -463,8 +463,27 @@ func Schedule() {
 
 		// wait until we see the folder locally
 		// this avoids starting 2 backups for the same VM
-		for {
-			_, err := os.Stat(filepath.Join(Config.SMB.LocalPath, backupName))
+		expectedFolder := filepath.Join(Config.SMB.LocalPath, backupName)
+		for i := 0; true; i++ {
+			// wait forever, but warn/email after 2/10 minutes
+			if i%120 == 119 {
+				fmt.Println(
+					"Warning: local file not found:",
+					expectedFolder,
+				)
+				fmt.Println("Continuing to wait...")
+			}
+			if i == 600 {
+				Email(
+					"Backups might be stuck",
+					fmt.Sprintf(
+						"Local file not found after 10 minutes: %s",
+						expectedFolder,
+					),
+				)
+			}
+
+			_, err := os.Stat(expectedFolder)
 			if err == nil {
 				break
 			}
