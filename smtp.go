@@ -11,8 +11,13 @@ import (
 
 func Email(subject, body string) error {
 	debugReturn := DebugCall(subject, body)
-	var msg bytes.Buffer
 
+	if !SMTPConfigured() {
+		debugReturn(nil)
+		return nil
+	}
+
+	var msg bytes.Buffer
 	msg.WriteString("To: " + Config.SMTP.To + "\r\n")
 	msg.WriteString("From: " + Config.SMTP.From + "\r\n")
 	msg.WriteString("Subject: " + subject + "\r\n")
