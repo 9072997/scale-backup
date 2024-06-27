@@ -72,7 +72,14 @@ func SMTPConfigured() bool {
 }
 
 func ScheduleConfigured() bool {
-	return !isZero(Config.Schedule.Tag)
+	return Config.Schedule.Tag != "" ||
+		Config.Schedule.Concurrency != 0 ||
+		Config.Schedule.StartTime != "" ||
+		Config.Schedule.EndTime != "" ||
+		Config.Schedule.BackupInterval != "" ||
+		Config.Schedule.Tolerance != "" ||
+		Config.Schedule.MaxBackups != 0 ||
+		Config.Schedule.MaxAge != ""
 }
 
 // try in order:
